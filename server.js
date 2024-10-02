@@ -44,20 +44,14 @@ io.on('connection', (socket) => {
   // Listen for new canvas creation
   socket.on('new-canvas', (newCanvas) => {
     const { id } = newCanvas;
-
     // Initialize empty history for the new canvas
     if (!canvasHistory[id]) {
       canvasHistory[id] = [];
     }
-
     // Log the new canvas creation
     console.log(`New canvas created: ${id}`);
-
     // Emit the new canvas event to all clients
     io.emit('new-canvas', newCanvas);
-
-    // Send the empty history to the new canvas
-    // socket.emit("load-canvas-history", [{ id, drawings: [] }]);
   });
 
   // Clear a canvas
