@@ -1,41 +1,76 @@
 import express from 'express';
-import { Server as SocketIOServer } from 'socket.io';
+import { Server } from 'socket.io';
 import http from 'http';
 
 const app = express();
 const server = http.createServer(app);
-const io = new SocketIOServer(server, {
+const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins; adjust this in production
+    origin: "*", // Allow all origins for now, adjust this in production
     methods: ["GET", "POST"],
   },
 });
 
-// Array to store the drawing history
-let drawingHistory = [];
+// Store canvas drawing history per canvas
+let canvasHistory = {}; // { canvasId: [{x0, y0, x1, y1, color, lineWidth}] }
 
-// Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('User connected');
 
-  // Send the drawing history to the new user
-  socket.emit('load-drawing-history', drawingHistory);
+  // Send all canvas history to new user
+  const canvasData = Object.keys(canvasHistory).map((id) => ({
+    id,
+    drawings: canvasHistory[id] || [],
+  }));
+  console.log('Sending canvas history to the new user:', canvasData);
+  socket.emit('load-canvas-history', canvasData);
 
-  // Listen for new draw events from the client
+  // Listen for draw events
   socket.on('draw', (data) => {
-    console.log('Drawing data received:', data);
+    const { canvasId, drawing } = data;
 
-    // Store the drawing data in history
-    drawingHistory.push(data);
+    // Ensure history exists for this canvas
+    if (!canvasHistory[canvasId]) {
+      canvasHistory[canvasId] = [];
+    }
 
-    // Broadcast the new drawing to other connected clients
+    // Store the new drawing in the canvas history
+    canvasHistory[canvasId].push(drawing);
+
+    // Broadcast the drawing to other clients
     socket.broadcast.emit('draw', data);
   });
 
-  // Clear the drawing history if needed (optional)
-  socket.on('clear', () => {
-    drawingHistory = [];
-    io.emit('clear-canvas'); // Notify all clients to clear their canvases
+  // Listen for new canvas creation
+  socket.on('new-canvas', (newCanvas) => {
+    const { id } = newCanvas;
+
+    // Initialize empty history for the new canvas
+    if (!canvasHistory[id]) {
+      canvasHistory[id] = [];
+    }
+
+    // Log the new canvas creation
+    console.log(`New canvas created: ${id}`);
+
+    // Emit the new canvas event to all clients
+    io.emit('new-canvas', newCanvas);
+
+    // Send the empty history to the new canvas
+    // socket.emit("load-canvas-history", [{ id, drawings: [] }]);
+  });
+
+  // Clear a canvas
+  socket.on('clear-canvas', (data) => {
+    const { canvasId } = data;
+
+    // Clear the canvas history for the specified canvas
+    if (canvasHistory[canvasId]) {
+      canvasHistory[canvasId] = [];
+    }
+
+    // Notify all clients to clear the canvas
+    io.emit('clear-canvas', { canvasId });
   });
 
   socket.on('disconnect', () => {
@@ -43,13 +78,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Example route to check server status
-app.get('/', (req, res) => {
-  res.send('Socket.IO server is running!');
-});
-
-// Start the server
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
-  console.log('server is running on %d',PORT)
+  console.log(`Server is running on port ${PORT}`);
 });
