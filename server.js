@@ -1,8 +1,6 @@
-import express from 'express';
 import { Server } from 'socket.io';
 import http from 'http';
 
-const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -12,7 +10,7 @@ const io = new Server(server, {
 });
 
 // Store canvas drawing history per room and canvas
-let canvasHistory = {}; // { roomId: { canvasId: [{x0, y0, x1, y1, color, lineWidth}] } }
+const canvasHistory = {}; // { roomId: { canvasId: [{x0, y0, x1, y1, color, lineWidth}] } }
 
 io.on('connection', (socket) => {
   console.log('User connected');
@@ -73,7 +71,7 @@ io.on('connection', (socket) => {
 
   // Listen for canvas clearing in a specific room
   socket.on('clear-canvas', (data) => {
-    const { roomId, canvasId } = data;
+    const { canvasId, roomId } = data;
 
     // Clear the canvas history for the specified canvas in this room
     if (canvasHistory[roomId] && canvasHistory[roomId][canvasId]) {
@@ -81,15 +79,11 @@ io.on('connection', (socket) => {
     }
 
     // Notify all clients in the same room to clear the canvas
-    io.to(roomId).emit('clear-canvas', { canvasId });
+    socket.to(roomId).emit('clear-canvas', { canvasId });
   });
 
   socket.on('disconnect', () => {
     console.log('User disconnected');
-
-    // Optional: Clean up canvas history if necessary
-    // You may choose to remove the user's specific drawings if you want
-    // For example, based on user identification (if implemented)
   });
 });
 
