@@ -1,8 +1,8 @@
 import { Server } from 'socket.io';
 import http from 'http';
-import express from "express"
+import express from "express";
 
-const app = express()
+const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -84,9 +84,23 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('clear-canvas', { canvasId });
   });
 
+  // Listen for canvas deletion in a specific room
+  socket.on('delete-canvas', (data) => {
+    const { canvasId, roomId } = data;
+
+    // Delete the canvas history for the specified canvas in this room
+    if (canvasHistory[roomId] && canvasHistory[roomId][canvasId]) {
+      delete canvasHistory[roomId][canvasId];
+    }
+
+    console.log(`Canvas deleted: ${canvasId} in room: ${roomId}`);
+
+    // Notify all clients in the same room to delete the canvas
+    io.to(roomId).emit('delete-canvas', canvasId);
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected');
-
   });
 });
 
