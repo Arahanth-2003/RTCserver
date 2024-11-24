@@ -11,8 +11,8 @@ const io = new Server(server, {
   },
 });
 
-// Store canvas drawing history per room and canvas
-const canvasHistory = {}; // { roomId: { canvasId: [{x0, y0, x1, y1, color, lineWidth}] } }
+// Store canvas data per room and canvas, including drawings and text areas
+const canvasHistory = {}; // { roomId: { canvasId: { drawings: [], textAreas: [] } } }
 
 io.on('connection', (socket) => {
   console.log('User connected');
@@ -22,18 +22,19 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     console.log(`User joined room: ${roomId}`);
 
-    // Send all canvas history for this room to the new user
+    // Send all canvas data for this room to the new user
     const roomData = canvasHistory[roomId] || {};
     const canvases = Object.keys(roomData).map((canvasId) => ({
       id: canvasId,
-      drawings: roomData[canvasId] || [],
+      drawings: roomData[canvasId]?.drawings || [],
+      textAreas: roomData[canvasId]?.textAreas || [],
     }));
 
-    console.log(`Sending canvas history to user for room: ${roomId}`, canvases);
+    console.log(`Sending canvas data to user for room: ${roomId}`, canvases);
     socket.emit('load-room-canvases', canvases);
   });
 
-  // Listen for draw events
+  // Listen for draw events (both drawing lines and adding text)
   socket.on('draw', (data) => {
     const { canvasId, drawing, roomId } = data;
 
@@ -42,14 +43,31 @@ io.on('connection', (socket) => {
       canvasHistory[roomId] = {};
     }
     if (!canvasHistory[roomId][canvasId]) {
-      canvasHistory[roomId][canvasId] = [];
+      canvasHistory[roomId][canvasId] = { drawings: [], textAreas: [] };
     }
 
     // Store the new drawing in the canvas history
-    canvasHistory[roomId][canvasId].push(drawing);
+    canvasHistory[roomId][canvasId].drawings.push(drawing);
 
     // Broadcast the drawing to other clients in the same room
     socket.to(roomId).emit('draw', data);
+  });
+
+  // Listen for text updates (adding, moving, or editing text areas)
+  socket.on('text-update', ({ canvasId, textAreas, roomId }) => {
+    // Ensure history exists for this room and canvas
+    if (!canvasHistory[roomId]) {
+      canvasHistory[roomId] = {};
+    }
+    if (!canvasHistory[roomId][canvasId]) {
+      canvasHistory[roomId][canvasId] = { drawings: [], textAreas: [] };
+    }
+
+    // Update the text areas in the canvas history
+    canvasHistory[roomId][canvasId].textAreas = textAreas;
+
+    // Broadcast the updated text areas to other clients in the same room
+    socket.to(roomId).emit('text-update', { canvasId, textAreas });
   });
 
   // Listen for new canvas creation in a specific room
@@ -63,7 +81,7 @@ io.on('connection', (socket) => {
 
     // Initialize empty history for the new canvas
     if (!canvasHistory[roomId][newCanvasId]) {
-      canvasHistory[roomId][newCanvasId] = [];
+      canvasHistory[roomId][newCanvasId] = { drawings: [], textAreas: [] };
     }
 
     console.log(`New canvas created in room ${roomId}: ${newCanvasId}`);
@@ -77,7 +95,7 @@ io.on('connection', (socket) => {
 
     // Clear the canvas history for the specified canvas in this room
     if (canvasHistory[roomId] && canvasHistory[roomId][canvasId]) {
-      canvasHistory[roomId][canvasId] = [];
+      canvasHistory[roomId][canvasId] = { drawings: [], textAreas: [] };
     }
 
     // Notify all clients in the same room to clear the canvas
