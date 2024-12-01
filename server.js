@@ -33,7 +33,7 @@ io.on('connection', (socket) => {
       drawings: roomData[canvasId]?.drawings || [],
       textAreas: roomData[canvasId]?.textAreas || [],
     }));
-
+    // for debugging to check whether data is being sent to new user or not
     console.log(`Sending canvas data to user ${socket.id} for room: ${roomId}`, canvases);
     socket.emit('load-room-canvases', canvases);
   });
